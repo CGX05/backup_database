@@ -5,7 +5,7 @@
 backups/
 
 #忽略配置文件
-config.evn
+config.env
 
 .idea/
 __pycache__/
