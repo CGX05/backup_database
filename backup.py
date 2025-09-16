@@ -1,3 +1,4 @@
+import os.path
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -19,3 +20,40 @@ def get_backup_files():
         })
     return backup_files
 # print(get_backup_files())
+
+def backup_database_post(database_name:str):
+    """指定数据库备份"""
+    try:
+        filename=f"{database_name}.sql"
+        backup_dir=settings.BACKUP_DIR
+        backup_path=os.path.join(backup_dir,filename)
+        cmd=[
+            'mysqldump',
+            f'-h{settings.MYSQL_HOST}',
+            f'-P{settings.MYSQL_PORT}',
+            f'-u{settings.MYSQL_USER}',
+            f'-p{settings.MYSQL_PASSWORD}',
+            '--single-transaction',
+            database_name
+        ]
+        with open(backup_path,'w') as f:
+            result=subprocess.run(cmd,stdout=f,text=True)
+        if result.returncode != 0:
+            os.remove(backup_path)
+            return {
+                "success":False,
+                "message":f"备份失败，返回码{result.returncode}",
+                "backup_file":None
+            }
+        return {
+            "success": True,
+            "message": "备份成功",
+            "backup_file": str(backup_path)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"备份异常: {str(e)}",
+            "backup_file": None
+        }
+# print(backup_database_post("blog"))
