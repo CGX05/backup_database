@@ -1,4 +1,4 @@
-name: backup_database
+name: backup_mysql
 
 on: 
   push:
@@ -12,25 +12,6 @@ jobs:
     - name: 下载代码
       uses: actions/checkout@v4
 
-    - name: 设置Python环境
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-
-    - name: 创建配置文件
-      run: |
-        echo "创建.env配置文件"
-        echo "MYSQL_HOST=localhost" > .env
-        echo "MYSQL_PORT=3306" >> .env
-        echo "MYSQL_USER=root" >> .env
-        echo "MYSQL_PASSWORD=${{secrets.DATABASE_PASSWORD}}" >> .env
-        echo "BACKUP_DIR=./backups" >> .env
-        # 显示配置（隐藏敏感信息）
-        cat .env | grep -v PASSWORD
-
-    - name: 安装依赖
-      run: pip install -r requirements.txt
-
     - name: 安装sshpass
       run: sudo apt-get install -y sshpass
 
@@ -41,11 +22,7 @@ jobs:
         ssh -o StrictHostKeyChecking=no \
             -o ConnectTimeout=30 \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          echo '✅ 成功连接到阿里云服务器！'
-          echo '🖥️  服务器信息：'
-          uname -a
-          echo '📁 当前目录：'
-          pwd
+          echo '✅ 成功连接到服务器！'
         "
       env:
         SSHPASS: ${{ secrets.SERVER_PASSWORD }}
@@ -55,107 +32,74 @@ jobs:
         sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
         ssh -o StrictHostKeyChecking=no \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          # 创建应用目录（修正路径）
-          mkdir -p /home/mysql-backup-api
-          echo '📁 应用目录创建完成：/home/mysql-backup-api'
+          mkdir -p /home/my-python-app
+          echo '📁 应用目录创建完成：/home/my-python-app'
         "
       env:
         SSHPASS: ${{ secrets.SERVER_PASSWORD }}
 
     - name: 上传代码到服务器
       run: |
-        echo "开始上传代码到阿里云服务器..."
+        echo "开始上传代码到服务器..."
         sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
         scp -o StrictHostKeyChecking=no \
             -r ./* \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/mysql-backup-api/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/my-python-app/
         echo '✅ 代码上传完成！'
       env:
         SSHPASS: ${{ secrets.SERVER_PASSWORD }}
 
-    - name: 在服务器上安装依赖
+    - name: 在服务器上部署应用
       run: |
         sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
         ssh -o StrictHostKeyChecking=no \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          cd /home/mysql-backup-api
-          echo '🐍 安装Python依赖...'
-          pip3 install -r requirements.txt
-          echo '✅ 依赖安装完成！'
-        "
-      env:
-        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+          cd /home/my-python-app
+          echo ' 开始部署流程..'
 
-    - name: 在应用目录执行MySQL备份
-      run: |
-        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
-        ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          cd /home/mysql-backup-api  # 修正路径：/home 不是 /hoem
-          echo '🗄️  开始MySQL备份...'
-          # 创建备份目录
-          mkdir -p backups
-          # 执行备份（确保数据库名正确）
-          mysqldump -h localhost -u root -p'${{ secrets.DATABASE_PASSWORD }}' your_database > backups/backup_$(date +%Y%m%d_%H%M%S).sql
-          echo '✅ MySQL备份完成！'
-          echo '📊 备份文件列表：'
-          ls -la backups/
-        "
-      env:
-        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+          # ✅ 1. 创建 .env 文件
+          echo '🔐 创建 .env 配置文件...'
+          cat > .env << 'EOF'
+        # 应用配置
+        DEBUG=False
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        DATABASE_URL=${{ secrets.DATABASE_URL }}
+        API_KEY=${{ secrets.API_KEY }}
 
-    - name: 启动应用并保持运行
-      run: |
-        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
-        ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          cd /home/mysql-backup-api
+          echo '✅ .env 文件创建成功！'
+
+          # 2. 创建虚拟环境
+          echo '📁 创建 Python 虚拟环境 (venv)...'
+          python3 -m venv venv
+
+          # 3. 激活虚拟环境
+          echo '⚡ 激活虚拟环境...'
+          source venv/bin/activate
+
+          # 4. 安装项目依赖
+          echo '📦 安装 requirements.txt 中的依赖...'
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+          # 5. 停止可能已经在运行的旧应用
+          echo '⏹️  停止旧应用实例...'
+          pkill -f 'python main.py' || echo '没有正在运行的应用或已停止。'
+
+          # 6. 启动应用（后台运行）
           echo '🚀 启动应用...'
-          
-          # 停止可能已经在运行的应用
-          pkill -f 'python3 main.py' || true
-          
-          # 使用screen或tmux保持进程运行，或者使用systemd服务
-          # 方法1：使用nohup并重定向（改进版）
-          nohup python3 main.py > app.log 2>&1 &
-          
-          # 等待一下让进程启动
-          sleep 3
-          
-          echo '✅ 应用启动完成！'
-          echo '📋 查看进程：'
-          ps aux | grep python | grep -v grep
-          
-          echo '📝 查看应用日志：'
-          tail -n 5 app.log
-        "
-      env:
-        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+          nohup python main.py > app.log 2>&1 &
 
-    - name: 验证应用运行
-      run: |
-        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
-        ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          echo '🔍 验证应用运行状态...'
-          echo '1. 检查进程：'
-          ps aux | grep 'python3 main.py' | grep -v grep
-          
-          echo '2. 检查端口：'
-          netstat -tlnp | grep :8000 || echo '8000端口未监听'
-          
-          echo '3. 测试接口：'
-          curl -s http://localhost:8000/ || echo '应用未响应'
-          
-          echo '4. 查看日志：'
-          tail -n 10 /home/mysql-backup-api/app.log
+          # 7. 验证
+          echo '🎉 部署完成！'
+          echo '📋 进程：'
+          ps aux | grep python | grep -v grep
         "
       env:
         SSHPASS: ${{ secrets.SERVER_PASSWORD }}
 
     - name: 部署完成通知
       run: |
-        echo '🎉 部署到阿里云服务器完成！'
+        echo '🎉 部署到服务器完成！'
         echo '🌐 服务器IP: ${{ secrets.SERVER_HOST }}'
-        echo '📁 应用路径: /home/mysql-backup-api/'
-        echo '📊 查看应用: http://${{ secrets.SERVER_HOST }}:8000'
+        echo '📁 应用路径: /home/my-python-app/'
+        echo '📄 日志文件: /home/my-python-app/app.log'
