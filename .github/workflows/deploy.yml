@@ -1,65 +1,81 @@
-# 工作流名称，可自定义
 name: backup_database
 
 on:
   push:
-    branches: [ master ]
+    branches: [ "master" ]  # 推送到 main 分支时触发
 
-# 定义要执行的任务
 jobs:
-  # 任务名称：部署
   deploy:
-    # 运行在最新的Ubuntu系统上
     runs-on: ubuntu-latest
-    
-    # 步骤列表，按顺序执行
     steps:
-      # 第一步：拉取代码到GitHub服务器
-      - name: 拉取最新代码
-        uses: actions/checkout@v4  # 使用官方的代码拉取工具
-      
-      # 第二步：安装Python环境
-      - name: 配置Python环境
-        uses: actions/setup-python@v5  # 使用官方的Python安装工具
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Upload and Deploy via SSH (Password)
+        uses: appleboy/ssh-action@v1.0.0
         with:
-          python-version: '3.12'
-      
-      # 第三步：在本地检查依赖安装（可选，但推荐）
-      - name: 安装项目依赖
-        run: |
-          python -m pip install --upgrade pip  # 升级pip工具
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi  # 安装依赖
-      
-      # 第四步：创建环境变量文件
-      - name: 创建配置文件
-        run: |
-          # 从GitHub的保密信息中创建config.env文件
-          echo "MYSQL_PASSWORD=${{ secrets.DATABASE_KEY }}" > config.env
-      
-      # 第五步：通过SSH连接服务器并部署
-      - name: 部署到服务器
-        uses: appleboy/ssh-action@master  # 使用第三方的SSH工具
-        with:
-          # 服务器信息，从保密信息中获取
-          host: ${{ secrets.SERVER_HOST }}  # 服务器IP或域名
-          username: ${{ secrets.SERVER_USER }}  # 登录服务器的用户名
-          password: ${{ secrets.SERVER_PASSWORD }}  # 登录服务器的密码
-          port: ${{ secrets.SERVER_PORT || '22' }}  # SSH端口，默认22
-          
-          # 要在服务器上执行的命令
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          # 上传当前代码到服务器的指定目录
+          upload: true
+          source: "."                    # 上传整个项目根目录
+          target: "/home/ubuntu/myfastapi/source"  # 服务器上的临时目录
           script: |
-            # 进入服务器上的应用目录（请修改为你的实际目录）
-            cd /home/backup_database
-            
-            # 创建目录（如果不存在）
-            mkdir -p /home/backup_database
-            
-            # 从GitHub Actions服务器复制文件到当前服务器
-            scp -r ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/backup_database
-            
-            # 安装服务器上的依赖
-            pip3 install -r requirements.txt
-            
-            # 重启应用
-            nohup python3 main.py &  # 后台启动应用
-    
+            # 进入项目主目录
+            cd /home/ubuntu/myfastapi || mkdir -p /home/ubuntu/myfastapi && cd /home/ubuntu/myfastapi
+
+            # 1. 复制上传的代码（排除 .git 和 workflows 等）
+            cp -r source/* ./ || true
+            cp -r source/.* ./ 2>/dev/null || true
+
+            # 清理临时上传标记文件（ssh-action 自动生成）
+            rm -f .update .upload
+
+            echo "✅ 代码已从 GitHub Actions 上传并复制"
+
+            # 2. 生成 config.env 文件
+            cat > config.env << 'EOF'
+            ${{ secrets.DATABASE_KEY }}
+            EOF
+            echo "✅ config.env 已生成"
+
+            # 3. 创建虚拟环境（如果不存在）
+            if [ ! -d "venv" ]; then
+              echo "🔄 创建虚拟环境..."
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+
+            # 4. 升级 pip
+            pip install --upgrade pip
+
+            # 5. 安装依赖
+            if [ -f "requirements.txt" ]; then
+              echo "📦 安装 Python 依赖..."
+              pip install -r requirements.txt
+            else
+              echo "❌ 错误：requirements.txt 不存在！"
+              exit 1
+            fi
+
+            # 6. 安装 screen（如果未安装）
+            if ! command -v screen &> /dev/null; then
+              echo "🛠️ 安装 screen..."
+              sudo apt-get update && sudo apt-get install -y screen
+            fi
+
+            # 7. 停止旧的 FastAPI 进程
+            echo "⏹️ 停止旧的 FastAPI 应用..."
+            screen -S fastapi_app -X quit || echo "无正在运行的 fastapi_app"
+
+            # 8. 启动新应用（后台）
+            echo "🚀 启动 FastAPI 应用..."
+            screen -dmS fastapi_app bash -c "
+              source venv/bin/activate && \
+              echo '🌟 FastAPI 服务已启动' && \
+              uvicorn main:app --host 0.0.0.0 --port 8000
+            "
+
+            echo "🎉 部署完成！"
