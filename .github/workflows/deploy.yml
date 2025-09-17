@@ -1,105 +1,71 @@
-name: backup_mysql
-
-on: 
+name: backup_database
+on:
   push:
-    branches: [ master ]
+    branches: [ master ]  # 当master分支有推送时触发
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     
     steps:
-    - name: 下载代码
+    - name: 拉取代码
       uses: actions/checkout@v4
 
     - name: 安装sshpass
       run: sudo apt-get install -y sshpass
 
-    - name: 测试服务器连接
-      run: |
-        echo "测试连接到阿里云服务器..."
-        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
-        ssh -o StrictHostKeyChecking=no \
-            -o ConnectTimeout=30 \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          echo '✅ 成功连接到服务器！'
-        "
+    - name: 部署到服务器
       env:
-        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
-
-    - name: 在服务器创建应用目录
+        SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        SERVER_USER: ${{ secrets.SERVER_USER }}
+        SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
       run: |
-        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
-        ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          mkdir -p /home/my-python-app
-          echo '📁 应用目录创建完成：/home/my-python-app'
-        "
-      env:
-        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
-
-    - name: 上传代码到服务器
-      run: |
-        echo "开始上传代码到服务器..."
-        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
-        scp -o StrictHostKeyChecking=no \
-            -r ./* \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/my-python-app/
-        echo '✅ 代码上传完成！'
-      env:
-        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
-
-    - name: 在服务器上部署应用
-      run: |
-        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
-        ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          cd /home/my-python-app
-          echo ' 开始部署流程..'
-
-          # ✅ 1. 创建 .env 文件
-          echo '🔐 创建 .env 配置文件...'
-          cat > .env << 'EOF'
-        # 应用配置
-        DEBUG=False
-        SECRET_KEY=${{ secrets.SECRET_KEY }}
-        DATABASE_URL=${{ secrets.DATABASE_URL }}
-        API_KEY=${{ secrets.API_KEY }}
-
-          echo '✅ .env 文件创建成功！'
-
-          # 2. 创建虚拟环境
-          echo '📁 创建 Python 虚拟环境 (venv)...'
-          python3 -m venv venv
-
-          # 3. 激活虚拟环境
-          echo '⚡ 激活虚拟环境...'
+        # 使用sshpass通过密码连接服务器并执行部署命令
+        sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
+          set -e  # 遇到错误立即停止执行
+          
+          # 项目目录
+          PROJECT_DIR="/home/python-app"
+          
+          # 创建项目目录（如果不存在）
+          mkdir -p $PROJECT_DIR
+          cd $PROJECT_DIR || exit 1
+          
+          # 拉取最新代码
+          if [ -d ".git" ]; then
+            git pull origin master
+          else
+            git clone ${{ github.repositoryUrl }} .
+            git checkout main
+          fi
+          
+          # 确保Python和虚拟环境工具已安装
+          sudo apt-get update && sudo apt-get install -y python3 python3-venv
+          
+          # 创建并激活虚拟环境
+          if [ ! -d "venv" ]; then
+            python3 -m venv venv
+          fi
           source venv/bin/activate
-
-          # 4. 安装项目依赖
-          echo '📦 安装 requirements.txt 中的依赖...'
+          
+          # 安装依赖
           pip install --upgrade pip
           pip install -r requirements.txt
-
-          # 5. 停止可能已经在运行的旧应用
-          echo '⏹️  停止旧应用实例...'
-          pkill -f 'python main.py' || echo '没有正在运行的应用或已停止。'
-
-          # 6. 启动应用（后台运行）
-          echo '🚀 启动应用...'
-          nohup python main.py > app.log 2>&1 &
-
-          # 7. 验证
-          echo '🎉 部署完成！'
-          echo '📋 进程：'
-          ps aux | grep python | grep -v grep
-        "
-      env:
-        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
-
-    - name: 部署完成通知
-      run: |
-        echo '🎉 部署到服务器完成！'
-        echo '🌐 服务器IP: ${{ secrets.SERVER_HOST }}'
-        echo '📁 应用路径: /home/my-python-app/'
-        echo '📄 日志文件: /home/my-python-app/app.log'
+          
+          # 生成config.env文件
+          cat > config.env << ENV_EOF
+          # 环境变量配置
+          MYSQL_PASSWORD=${{ secrets.DATABASE_KYE }}
+          ENV_EOF
+          
+          # 赋予适当权限
+          chmod 600 config.env
+          
+          # 停止旧进程
+          pkill -f "venv/bin/python main.py" || true
+          
+          # 启动应用
+          nohup venv/bin/python main.py > app.log 2>&1 &
+          
+          echo "应用部署完成！"
+        EOF
