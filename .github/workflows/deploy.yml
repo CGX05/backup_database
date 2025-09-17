@@ -31,7 +31,7 @@ jobs:
     - name: 安装依赖
       run: pip install -r requirements.txt
 
-    - name: 安装sshpass（用于密码登录）
+    - name: 安装sshpass
       run: sudo apt-get install -y sshpass
 
     - name: 测试服务器连接
@@ -47,7 +47,6 @@ jobs:
           echo '📁 当前目录：'
           pwd
         "
-      # 隐藏密码显示
       env:
         SSHPASS: ${{ secrets.SERVER_PASSWORD }}
 
@@ -56,8 +55,8 @@ jobs:
         sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
         ssh -o StrictHostKeyChecking=no \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          sudo mkdir -p /home/mysql-backup-api
-          sudo chown ${{ secrets.SERVER_USER }}:${{ secrets.SERVER_USER }} /opt/mysql-backup-api
+          # 创建应用目录（修正路径）
+          mkdir -p /home/mysql-backup-api
           echo '📁 应用目录创建完成：/home/mysql-backup-api'
         "
       env:
@@ -87,16 +86,16 @@ jobs:
       env:
         SSHPASS: ${{ secrets.SERVER_PASSWORD }}
 
-    - name: 在服务器上执行MySQL备份
+    - name: 在应用目录执行MySQL备份
       run: |
         sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
         ssh -o StrictHostKeyChecking=no \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-          cd /hoem/mysql-backup-api
+          cd /home/mysql-backup-api  # 修正路径：/home 不是 /hoem
           echo '🗄️  开始MySQL备份...'
           # 创建备份目录
           mkdir -p backups
-          # 执行备份（请替换your_database为实际数据库名）
+          # 执行备份（确保数据库名正确）
           mysqldump -h localhost -u root -p'${{ secrets.DATABASE_PASSWORD }}' your_database > backups/backup_$(date +%Y%m%d_%H%M%S).sql
           echo '✅ MySQL备份完成！'
           echo '📊 备份文件列表：'
@@ -105,18 +104,51 @@ jobs:
       env:
         SSHPASS: ${{ secrets.SERVER_PASSWORD }}
 
-    - name: 启动应用（可选）
+    - name: 启动应用并保持运行
       run: |
         sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
         ssh -o StrictHostKeyChecking=no \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
           cd /home/mysql-backup-api
           echo '🚀 启动应用...'
-          # 后台启动FastAPI应用
+          
+          # 停止可能已经在运行的应用
+          pkill -f 'python3 main.py' || true
+          
+          # 使用screen或tmux保持进程运行，或者使用systemd服务
+          # 方法1：使用nohup并重定向（改进版）
           nohup python3 main.py > app.log 2>&1 &
+          
+          # 等待一下让进程启动
+          sleep 3
+          
           echo '✅ 应用启动完成！'
           echo '📋 查看进程：'
-          ps aux | grep python
+          ps aux | grep python | grep -v grep
+          
+          echo '📝 查看应用日志：'
+          tail -n 5 app.log
+        "
+      env:
+        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+
+    - name: 验证应用运行
+      run: |
+        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
+        ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          echo '🔍 验证应用运行状态...'
+          echo '1. 检查进程：'
+          ps aux | grep 'python3 main.py' | grep -v grep
+          
+          echo '2. 检查端口：'
+          netstat -tlnp | grep :8000 || echo '8000端口未监听'
+          
+          echo '3. 测试接口：'
+          curl -s http://localhost:8000/ || echo '应用未响应'
+          
+          echo '4. 查看日志：'
+          tail -n 10 /home/mysql-backup-api/app.log
         "
       env:
         SSHPASS: ${{ secrets.SERVER_PASSWORD }}
@@ -126,3 +158,4 @@ jobs:
         echo '🎉 部署到阿里云服务器完成！'
         echo '🌐 服务器IP: ${{ secrets.SERVER_HOST }}'
         echo '📁 应用路径: /home/mysql-backup-api/'
+        echo '📊 查看应用: http://${{ secrets.SERVER_HOST }}:8000'
