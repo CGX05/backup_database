@@ -11,79 +11,57 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 📤 Step 1: Upload code via SCP
-        uses: appleboy/scp-action@v0.1.4  # 使用 scp-action 上传文件
+      - name: 📤 Step 1: Upload code using SCP
+        uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SSH_PORT }}
-          source: "."                    # 上传当前目录所有文件
-          target: "/home/ubuntu/myfastapi/source"  # 上传到服务器的临时目录
-          rm: true                       # 上传前清空目标目录
+          source: "."
+          target: "/home/ubuntu/myfastapi/source"
+          rm: true
 
-      - name: 🛠️ Step 2: Deploy on server
-        uses: appleboy/ssh-action@v1.0.0  # 使用 ssh-action 执行命令
+      - name: 🛠️ Step 2: Run deployment script
+        uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            # 进入项目主目录
             cd /home/ubuntu/myfastapi || mkdir -p /home/ubuntu/myfastapi && cd /home/ubuntu/myfastapi
+            cp -r source/* ./ || true
+            cp -r source/.* ./ 2>/dev/null || true
+            echo "✅ 代码已复制"
 
-            # 1. 复制上传的代码
-            if [ -d "source" ]; then
-              cp -r source/* ./ || true
-              cp -r source/.* ./ 2>/dev/null || true
-              echo "✅ 代码已从 source/ 复制"
-            else
-              echo "❌ 错误：source/ 目录不存在！"
-              exit 1
-            fi
-
-            # 2. 生成 config.env 文件
             cat > config.env << 'EOF'
             MYSQL_PASSWORD=${{ secrets.DATABASE_KEY }}
             EOF
             echo "✅ config.env 已生成"
 
-            # 3. 创建虚拟环境（如果不存在）
             if [ ! -d "venv" ]; then
-              echo "🔄 创建虚拟环境..."
               python3 -m venv venv
             fi
             source venv/bin/activate
 
-            # 4. 升级 pip
             pip install --upgrade pip
-
-            # 5. 安装依赖
             if [ -f "requirements.txt" ]; then
-              echo "📦 安装 Python 依赖..."
               pip install -r requirements.txt
             else
-              echo "❌ 错误：requirements.txt 不存在！"
+              echo "❌ requirements.txt 不存在"
               exit 1
             fi
 
-            # 6. 安装 screen（如果未安装）
             if ! command -v screen &> /dev/null; then
-              echo "🛠️ 安装 screen..."
               sudo apt-get update && sudo apt-get install -y screen
             fi
 
-            # 7. 停止旧的 FastAPI 进程
-            echo "⏹️ 停止旧的 FastAPI 应用..."
-            screen -S fastapi_app -X quit || echo "无正在运行的 fastapi_app"
+            screen -S fastapi_app -X quit || true
 
-            # 8. 启动新应用（后台）
-            echo "🚀 启动 FastAPI 应用..."
             screen -dmS fastapi_app bash -c "
               source venv/bin/activate && \
-              echo '🌟 FastAPI 服务已启动' && \
               uvicorn main:app --host 0.0.0.0 --port 8000
             "
 
-            echo "🎉 部署完成！"
+            echo "🎉 部署完成"
