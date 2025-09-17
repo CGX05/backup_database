@@ -1,0 +1,128 @@
+name: backup_database
+
+on: 
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 下载代码
+      uses: actions/checkout@v4
+
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: 创建配置文件
+      run: |
+        echo "创建.env配置文件"
+        echo "MYSQL_HOST=localhost" > .env
+        echo "MYSQL_PORT=3306" >> .env
+        echo "MYSQL_USER=root" >> .env
+        echo "MYSQL_PASSWORD=${{secrets.DATABASE_PASSWORD}}" >> .env
+        echo "BACKUP_DIR=./backups" >> .env
+        # 显示配置（隐藏敏感信息）
+        cat .env | grep -v PASSWORD
+
+    - name: 安装依赖
+      run: pip install -r requirements.txt
+
+    - name: 安装sshpass（用于密码登录）
+      run: sudo apt-get install -y sshpass
+
+    - name: 测试服务器连接
+      run: |
+        echo "测试连接到阿里云服务器..."
+        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
+        ssh -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          echo '✅ 成功连接到阿里云服务器！'
+          echo '🖥️  服务器信息：'
+          uname -a
+          echo '📁 当前目录：'
+          pwd
+        "
+      # 隐藏密码显示
+      env:
+        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+
+    - name: 在服务器创建应用目录
+      run: |
+        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
+        ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          sudo mkdir -p /home/mysql-backup-api
+          sudo chown ${{ secrets.SERVER_USER }}:${{ secrets.SERVER_USER }} /opt/mysql-backup-api
+          echo '📁 应用目录创建完成：/home/mysql-backup-api'
+        "
+      env:
+        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+
+    - name: 上传代码到服务器
+      run: |
+        echo "开始上传代码到阿里云服务器..."
+        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
+        scp -o StrictHostKeyChecking=no \
+            -r ./* \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/mysql-backup-api/
+        echo '✅ 代码上传完成！'
+      env:
+        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+
+    - name: 在服务器上安装依赖
+      run: |
+        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
+        ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          cd /home/mysql-backup-api
+          echo '🐍 安装Python依赖...'
+          pip3 install -r requirements.txt
+          echo '✅ 依赖安装完成！'
+        "
+      env:
+        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+
+    - name: 在服务器上执行MySQL备份
+      run: |
+        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
+        ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          cd /hoem/mysql-backup-api
+          echo '🗄️  开始MySQL备份...'
+          # 创建备份目录
+          mkdir -p backups
+          # 执行备份（请替换your_database为实际数据库名）
+          mysqldump -h localhost -u root -p'${{ secrets.DATABASE_PASSWORD }}' your_database > backups/backup_$(date +%Y%m%d_%H%M%S).sql
+          echo '✅ MySQL备份完成！'
+          echo '📊 备份文件列表：'
+          ls -la backups/
+        "
+      env:
+        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+
+    - name: 启动应用（可选）
+      run: |
+        sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
+        ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          cd /home/mysql-backup-api
+          echo '🚀 启动应用...'
+          # 后台启动FastAPI应用
+          nohup python3 main.py > app.log 2>&1 &
+          echo '✅ 应用启动完成！'
+          echo '📋 查看进程：'
+          ps aux | grep python
+        "
+      env:
+        SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+
+    - name: 部署完成通知
+      run: |
+        echo '🎉 部署到阿里云服务器完成！'
+        echo '🌐 服务器IP: ${{ secrets.SERVER_HOST }}'
+        echo '📁 应用路径: /home/mysql-backup-api/'

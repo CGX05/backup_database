@@ -33,7 +33,6 @@ def backup_database_post(database_name:str):
             f'-P{settings.MYSQL_PORT}',
             f'-u{settings.MYSQL_USER}',
             f'-p{settings.MYSQL_PASSWORD}',
-            '--single-transaction',
             database_name
         ]
         with open(backup_path,'w') as f:
