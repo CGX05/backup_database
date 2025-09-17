@@ -15,7 +15,7 @@ jobs:
     - name: 设置Python环境
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.12'
 
     - name: 创建配置文件
       run: |
