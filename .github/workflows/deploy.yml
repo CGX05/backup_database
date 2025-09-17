@@ -1,60 +1,65 @@
+# 工作流名称，可自定义
 name: backup_database
+
 on:
   push:
-    branches: [ master ]  # 当master分支有推送时触发
+    branches: [ master ]
 
+# 定义要执行的任务
 jobs:
+  # 任务名称：部署
   deploy:
+    # 运行在最新的Ubuntu系统上
     runs-on: ubuntu-latest
     
+    # 步骤列表，按顺序执行
     steps:
-    - name: 拉取代码
-      uses: actions/checkout@v4
-
-    - name: 安装sshpass
-      run: sudo apt-get install -y sshpass
-
-    - name: 部署到服务器
-      env:
-        SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        SERVER_USER: ${{ secrets.SERVER_USER }}
-        SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-      run: |
-        # 1. 使用 scp 将代码从 GitHub Actions 的 runner 复制到你的服务器
-        echo "开始上传代码..."
-        sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no -r ./* $SERVER_USER@$SERVER_HOST:/home/python-app/
-        echo "代码上传完成！"
-
-        # 2. 连接到服务器执行后续命令
-        sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
-          set -e
-          cd /home/python-app
-
-
-          # 确保Python和虚拟环境工具已安装
-          sudo apt-get update && sudo apt-get install -y python3 python3-venv
-
-          # 创建并激活虚拟环境
-          if [ ! -d "venv" ]; then
-            python3 -m venv venv
-          fi
-          source venv/bin/activate
-
-          # 安装依赖
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-          # 生成config.env文件
-          cat > config.env << ENV_EOF
-          MYSQL_PASSWORD=${{ secrets.DATABASE_KYE }}
-          ENV_EOF
-          chmod 600 config.env
-
-          # 停止旧进程
-          pkill -f "venv/bin/python main.py" || true
-
-          # 启动应用
-          nohup venv/bin/python main.py > app.log 2>&1 &
-
-          echo "应用部署完成！"
-        EOF
+      # 第一步：拉取代码到GitHub服务器
+      - name: 拉取最新代码
+        uses: actions/checkout@v4  # 使用官方的代码拉取工具
+      
+      # 第二步：安装Python环境
+      - name: 配置Python环境
+        uses: actions/setup-python@v5  # 使用官方的Python安装工具
+        with:
+          python-version: '3.12'
+      
+      # 第三步：在本地检查依赖安装（可选，但推荐）
+      - name: 安装项目依赖
+        run: |
+          python -m pip install --upgrade pip  # 升级pip工具
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi  # 安装依赖
+      
+      # 第四步：创建环境变量文件
+      - name: 创建配置文件
+        run: |
+          # 从GitHub的保密信息中创建config.env文件
+          echo "MYSQL_PASSWORD=${{ secrets.DATABASE_KEY }}" > config.env
+      
+      # 第五步：通过SSH连接服务器并部署
+      - name: 部署到服务器
+        uses: appleboy/ssh-action@master  # 使用第三方的SSH工具
+        with:
+          # 服务器信息，从保密信息中获取
+          host: ${{ secrets.SERVER_HOST }}  # 服务器IP或域名
+          username: ${{ secrets.SERVER_USER }}  # 登录服务器的用户名
+          password: ${{ secrets.SERVER_PASSWORD }}  # 登录服务器的密码
+          port: ${{ secrets.SERVER_PORT || '22' }}  # SSH端口，默认22
+          
+          # 要在服务器上执行的命令
+          script: |
+            # 进入服务器上的应用目录（请修改为你的实际目录）
+            cd /home/backup_database
+            
+            # 创建目录（如果不存在）
+            mkdir -p /home/backup_database
+            
+            # 从GitHub Actions服务器复制文件到当前服务器
+            scp -r ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/backup_database
+            
+            # 安装服务器上的依赖
+            pip3 install -r requirements.txt
+            
+            # 重启应用
+            nohup python3 main.py &  # 后台启动应用
+    
