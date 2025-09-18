@@ -48,7 +48,6 @@ jobs:
 
             # 2. 生成 config.env
             cat > config.env << 'EOF'
-            MYSQL_HOST=${{ secrets.SERVER_HOST }}
             MYSQL_PASSWORD=${{ secrets.DATABASE_KEY }}
             EOF
             echo "✅ config.env 已生成"
