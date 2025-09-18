@@ -23,24 +23,20 @@ async def backup_list():
 
 
 @app.post("/api/backup",summary="指定数据库备份接口")
-async def backup_post(request:Backup_Post):
-    if not request.database_name:
-        raise HTTPException(
-            status_code=400,
-            detail="数据库名称不能为空")
-    result=backup_database_post(request.database_name)
+async def backup_post():
+    result=backup_database_post()
     if not result["success"]:
         raise HTTPException(status_code=500,
                             detail=result["message"])
     raise HTTPException(status_code=200,
-                        detail=f"{request.database_name}备份成功!"
+                        detail=f"备份成功!"
     )
 
-if __name__ == "__main__":
-
-    uvicorn.run(
-        app="main:app",
-        host='0.0.0.0',
-        port=8000,
-        reload=True
-    )
+# if __name__ == "__main__":
+#
+#     uvicorn.run(
+#         app="main:app",
+#         host='127.0.0.1',
+#         port=8000,
+#         reload=True
+#     )

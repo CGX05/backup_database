@@ -14,17 +14,18 @@ def get_backup_files():
         stat = file_path.stat()
         create_time=datetime.fromtimestamp(stat.st_ctime).strftime("%Y-%m-%d %H:%M:%S")
         backup_files.append({
-            "filename": f"backup_{create_time}_{file_path.name}",
+            "filename": f"{file_path.name}",
             "create_time": create_time,
-            "file_size": stat.st_size
+            "file_size": f"{round(stat.st_size / (1024 * 1024), 2)}MB"
         })
     return backup_files
-# print(get_backup_files())
+print(get_backup_files())
 
-def backup_database_post(database_name:str):
-    """指定数据库备份"""
+def backup_database_post():
+    """数据库备份"""
     try:
-        filename=f"{database_name}.sql"
+        time_str=datetime.now().strftime("%Y-%m-%d %H时%M分%S")
+        filename=f"backup_{time_str}.sql"
         backup_dir=settings.BACKUP_DIR
         backup_path=os.path.join(backup_dir,filename)
         cmd=[
@@ -33,7 +34,7 @@ def backup_database_post(database_name:str):
             f'-P{settings.MYSQL_PORT}',
             f'-u{settings.MYSQL_USER}',
             f'-p{settings.MYSQL_PASSWORD}',
-            database_name
+            '--all-databases'
         ]
         with open(backup_path,'w') as f:
             result=subprocess.run(cmd,stdout=f,text=True)
@@ -55,4 +56,4 @@ def backup_database_post(database_name:str):
             "message": f"备份异常: {str(e)}",
             "backup_file": None
         }
-# print(backup_database_post("blog"))
+# print(backup_database_post())
