@@ -19,7 +19,7 @@ def get_backup_files():
             "file_size": f"{round(stat.st_size / (1024 * 1024), 2)}MB"
         })
     return backup_files
-print(get_backup_files())
+# print(get_backup_files())
 
 def backup_database_post():
     """数据库备份"""
