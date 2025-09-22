@@ -69,20 +69,47 @@ jobs:
               exit 1
             fi
 
-            # 5. 安装 screen（如果需要）
-            if ! command -v screen &> /dev/null; then
-              echo "🛠️ 安装 screen..."
-              sudo apt-get update && sudo apt-get install -y screen
+            #5.生成systemd服务文件
+            sudo tee /etc/systemd/system/fastapi.service > /dev/null << EOF
+            [Unit]
+            Description=FastAPI app
+
+            [Service]
+            Type=simple
+            User=root
+            WorkingDirectory=/home/ubuntu/myfastapi
+            ExecStart=/home/ubuntu/myfastapi/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+            Restart=always
+            RestartSec=5
+            EnvironmentFile=/home/ubuntu/myfastapi/config.env
+            StandardOutput=journal
+            StandardError=journal
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+              
+
+            # 6. 重新加载 systemd 配置
+            sudo systemctl daemon-reload
+
+            # 7. 停止旧服务（如果正在运行）
+            if sudo systemctl is-active --quiet fastapi.service; then
+              echo "🛑 停止旧服务..."
+              sudo systemctl stop fastapi.service
             fi
 
-            # 6. 停止旧进程
-            screen -S fastapi_app -X quit || echo "No running session"
+            # 8. 启动新服务
+            echo "🚀 启动 FastAPI 服务..."
+            sudo systemctl start fastapi.service
 
-            # 7. 启动新服务
-            screen -dmS fastapi_app bash -c "
-              source venv/bin/activate && \
-              echo '🚀 FastAPI 服务启动中...' && \
-              uvicorn main:app --host 0.0.0.0 --port 8000
-            "
+            # 8. 设置开机自启
+            sudo systemctl enable fastapi.service
 
-            echo "🎉 部署完成！服务已启动"
+            # 9. 检查服务状态
+            if sudo systemctl is-active --quiet fastapi.service; then
+              echo "🎉 部署成功！服务正在运行"
+            else
+              echo "❌ 服务启动失败，请检查日志：journalctl -u fastapi.service -n 50"
+              exit 1
+            fi
