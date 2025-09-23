@@ -3,12 +3,12 @@
     "name": "备份数据库",
     "code": "backup",
     "health_check_url": "http://8.134.127.43:8000/api/backup",
-    "check_frequency": 10
+    "check_frequency": 60
   },
   {
     "name": "查看备份列表",
     "code": "backup_list",
     "health_check_url": "http://8.134.127.43:8000/api/backups",
-    "check_frequency": 10
+    "check_frequency": 60
   }
 ]

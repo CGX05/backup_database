@@ -1,4 +1,4 @@
-name: Deploy FastAPI to Alibaba Cloud
+name: backup_database
 
 on:
   push:
