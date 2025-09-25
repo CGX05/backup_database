@@ -2,7 +2,7 @@
   {
     "name": "备份数据库",
     "code": "backup",
-    "health_check_url": "http://8.134.127.43:8000/api/backup",
+    "health_check_url": "http://8.134.127.43:8000/api/backup/database",
     "check_frequency": 60
   },
   {
