@@ -78,7 +78,7 @@ jobs:
             Type=simple
             User=root
             WorkingDirectory=/home/ubuntu/myfastapi
-            ExecStart=/home/ubuntu/myfastapi/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+            ExecStart=/home/ubuntu/myfastapi/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
             Restart=always
             RestartSec=5
             EnvironmentFile=/home/ubuntu/myfastapi/config.env
