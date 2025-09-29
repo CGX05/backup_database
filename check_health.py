@@ -13,11 +13,11 @@ def load_json(file_path:str="config.json"):
         with open(file_path,'r',encoding='utf8') as file:
             data=json.load(file)
             systems=[System(**item) for item in data]
-            print(f"加载{len(systems)}个配置")
-            print(systems)
+            print(f"加载{len(systems)}个健康检查配置")
+            # print(systems)
             return systems
     except Exception as e:
-        return {f"配置文件出错{e}"}
+        return {f"健康检查配置文件出错{e}"}
 # load_json()
 
 def check_health(system:System):
@@ -38,10 +38,11 @@ def check_health(system:System):
         )
 
 def execute_check_health():
+    # 执行检查
     all_check={}
     systems=load_json()
     if not systems:
-        print("json没有配置可检查的系统")
+        print("json没有配置可检查的系统信息")
     for system in systems:
         check=check_health(system)
         all_check[system.code]=check

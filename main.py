@@ -19,6 +19,11 @@ app.add_middleware(
 async def hello():
     return {"message":"Hello"}
 
+@app.get("/health",summary="检查系统")
+async def check_health():
+    raise HTTPException(status_code=200)
+
+
 @app.get("/api/backups",summary="获取备份列表接口")
 async def backup_list():
     try:
@@ -29,7 +34,7 @@ async def backup_list():
                             detail=f"获取备份文件信息失败：{e}")
 
 
-@app.get("/api/backup/database",summary="数据库备份接口")
+@app.post("/api/backup/database",summary="执行数据库备份接口")
 async def backup_post():
     result=backup_database_post()
     if not result["success"]:
@@ -39,7 +44,7 @@ async def backup_post():
                         detail=f"备份成功!"
     )
 
-@app.get("/api/health",summary="系统健康状态接口")
+@app.get("/api/health",summary="返回系统健康状态接口")
 async def get_health_status():
     """获取系统健康状态"""
     check=execute_check_health()

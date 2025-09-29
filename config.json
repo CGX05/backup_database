@@ -1,14 +1,8 @@
 [
   {
-    "name": "备份数据库",
-    "code": "backup",
-    "health_check_url": "http://8.134.127.43:8000/api/backup/database",
-    "check_frequency": 60
-  },
-  {
-    "name": "查看备份列表",
-    "code": "backup_list",
-    "health_check_url": "http://8.134.127.43:8000/api/backups",
+    "name": "检查备份系统",
+    "code": "health",
+    "health_check_url": "http://8.134.127.43:8000/health",
     "check_frequency": 60
   }
 ]
