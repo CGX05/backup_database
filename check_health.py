@@ -13,7 +13,7 @@ def load_json(file_path:str="config.json"):
         with open(file_path,'r',encoding='utf8') as file:
             data=json.load(file)
             systems=[System(**item) for item in data]
-            print(f"加载{len(systems)}个健康检查配置")
+            # print(f"加载{len(systems)}个健康检查配置")
             # print(systems)
             return systems
     except Exception as e:
