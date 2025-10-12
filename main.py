@@ -85,11 +85,11 @@ async def get_health_status():
     logger.info(f"系统健康检查结果：{check}")
     return check
 
-if __name__ == "__main__":
-
-    uvicorn.run(
-        app="main:app",
-        host='127.0.0.1',
-        port=8000,
-        reload=True
-    )
+# if __name__ == "__main__":
+#
+#     uvicorn.run(
+#         app="main:app",
+#         host='127.0.0.1',
+#         port=8000,
+#         reload=True
+#     )
