@@ -7,5 +7,8 @@ backup/
 #忽略配置文件
 config.env
 
+#忽略日志文件
+logs/
+
 .idea/
 __pycache__/
