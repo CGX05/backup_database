@@ -4,6 +4,7 @@ from fastapi import FastAPI,HTTPException
 import uvicorn
 from backup import get_backup_files,backup_database_post
 from check_health import execute_check_health,lifespan
+from supervisord_API import get_processes,get_process_name,get_process_log
 import logging
 import logging.handlers
 
@@ -84,6 +85,32 @@ async def get_health_status():
     check=execute_check_health()
     logger.info(f"系统健康检查结果：{check}")
     return check
+
+@app.get("/api/supervisord/processes",summary="获取supervisord管理的所有进程状态信息")
+async def list_processes():
+    try:
+        processes=get_processes()
+        return processes
+    except Exception as e:
+        raise HTTPException(status_code=500,detail=f"获取失败：{str(e)}")
+
+@app.get("/api/supervisord/process/{name}",summary="获取指定进程的状态")
+async def process(name:str):
+    try:
+        process=get_process_name(name)
+        return process
+    except Exception as e:
+        raise HTTPException(status_code=500,detail=f"指定{name}进程状态获取失败：{str(e)}")
+
+@app.get("/api/supervisord/process/log/{name}",summary="获取指定进程日志")
+async def get_log(name:str):
+    try:
+        logs=get_process_log(name)
+        return logs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"指定{name}进程日志获取失败：{str(e)}")
+
+
 
 # if __name__ == "__main__":
 #
