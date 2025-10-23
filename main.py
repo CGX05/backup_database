@@ -29,10 +29,28 @@ file_handler.setFormatter(formatter)
 file_handler.setLevel(logging.INFO)
 logger.addHandler(file_handler)
 
-
+# 标签分类
+tag=[
+    {
+        "name":"backup",
+        "description":"备份相关操作"
+    },
+    {
+        "name":"health_check",
+        "description":"健康检查系统操作"
+    },
+    {
+        "name":"process_status",
+        "description":"进程状态操作"
+    }
+]
 app=FastAPI(lifespan=lifespan,
-            title="Mysql备份",
-            version="1.0.0")
+            title="应用监控",
+            description="用于数据库备份，健康检查和查看进程状态的API",
+            version="1.0.0",
+            openapi_tags=tag,
+            docs_url="/swagger",
+            redoc_url="/redoc")
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,13 +65,13 @@ async def hello():
     logger.info("/根目录被访问")
     return {"message":"Hello"}
 
-@app.get("/health",summary="检查系统")
+@app.get("/health",summary="检查系统",tags=["health_check"])
 async def check_health():
     logger.info("健康检查接口被调用")
     raise HTTPException(status_code=200)
 
 
-@app.get("/api/backups",summary="获取备份列表接口")
+@app.get("/api/backups",summary="获取备份列表",description="返回所有备份信息",tags=["backup"])
 async def backup_list():
     try:
         logger.info("开始获取备份列表接口信息")
@@ -66,7 +84,7 @@ async def backup_list():
                             detail=f"获取备份文件信息失败：{e}")
 
 
-@app.post("/api/backup/database",summary="执行数据库备份接口")
+@app.post("/api/backup/database",summary="数据库备份",description="执行备份数据",tags=["backup"])
 async def backup_post():
     logger.info("收到数据库备份请求")
     result=backup_database_post()
@@ -78,7 +96,7 @@ async def backup_post():
                         detail=f"备份成功!"
     )
 
-@app.get("/api/health",summary="返回系统健康状态接口")
+@app.get("/api/health",summary="系统健康状态",description="检查系统接口",tags=["health_check"])
 async def get_health_status():
     """获取系统健康状态"""
     logger.info("检查系统健康")
@@ -86,7 +104,7 @@ async def get_health_status():
     logger.info(f"系统健康检查结果：{check}")
     return check
 
-@app.get("/api/supervisord/processes",summary="获取supervisord管理的所有进程状态信息")
+@app.get("/api/supervisord/processes",summary="获取supervisord管理的所有进程状态信息",tags=["process_status"])
 async def list_processes():
     try:
         processes=get_processes()
@@ -94,7 +112,7 @@ async def list_processes():
     except Exception as e:
         raise HTTPException(status_code=500,detail=f"获取失败：{str(e)}")
 
-@app.get("/api/supervisord/process/{name}",summary="获取指定进程的状态")
+@app.get("/api/supervisord/process/{name}",summary="获取指定进程的状态",tags=["process_status"])
 async def process(name:str):
     try:
         process=get_process_name(name)
@@ -102,7 +120,7 @@ async def process(name:str):
     except Exception as e:
         raise HTTPException(status_code=500,detail=f"指定{name}进程状态获取失败：{str(e)}")
 
-@app.get("/api/supervisord/process/log/{name}",summary="获取指定进程日志")
+@app.get("/api/supervisord/process/log/{name}",summary="获取指定进程日志",tags=["process_status"])
 async def get_log(name:str):
     try:
         logs=get_process_log(name)
@@ -112,11 +130,11 @@ async def get_log(name:str):
 
 
 
-# if __name__ == "__main__":
-#
-#     uvicorn.run(
-#         app="main:app",
-#         host='127.0.0.1',
-#         port=8000,
-#         reload=True
-#     )
+if __name__ == "__main__":
+
+    uvicorn.run(
+        app="main:app",
+        host='127.0.0.1',
+        port=8000,
+        reload=True
+    )
