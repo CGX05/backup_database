@@ -49,6 +49,7 @@ jobs:
             # 2. 生成 config.env
             cat > config.env << 'EOF'
             MYSQL_PASSWORD=${{ secrets.DATABASE_KEY }}
+            token_key=${{secrets.TOKEN_KEY}}
             EOF
             echo "✅ config.env 已生成"
 

@@ -1,12 +1,12 @@
 import os
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI,HTTPException
+from fastapi import FastAPI,HTTPException,Depends
 import uvicorn
 from backup import get_backup_files,backup_database_post
 from check_health import execute_check_health,lifespan
 from supervisord_API import get_processes,get_process_name,get_process_log
-import logging
 import logging.handlers
+from oauth import get_current_token
 
 #配置日志目录
 log_dir="logs"
@@ -52,6 +52,7 @@ app=FastAPI(lifespan=lifespan,
             docs_url="/swagger",
             redoc_url="/redoc")
 
+# 跨域
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -59,11 +60,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
 @app.get('/')
 async def hello():
     logger.info("/根目录被访问")
-    return {"message":"Hello"}
+    return {f"message:Hello"}
 
 @app.get("/health",summary="检查系统",tags=["health_check"])
 async def check_health():
@@ -71,7 +71,7 @@ async def check_health():
     raise HTTPException(status_code=200)
 
 
-@app.get("/api/backups",summary="获取备份列表",description="返回所有备份信息",tags=["backup"])
+@app.get("/api/backups",summary="获取备份列表",description="返回所有备份信息",tags=["backup"],dependencies=[Depends(get_current_token)])
 async def backup_list():
     try:
         logger.info("开始获取备份列表接口信息")
@@ -84,7 +84,7 @@ async def backup_list():
                             detail=f"获取备份文件信息失败：{e}")
 
 
-@app.post("/api/backup/database",summary="数据库备份",description="执行备份数据",tags=["backup"])
+@app.post("/api/backup/database",summary="数据库备份",description="执行备份数据",tags=["backup"],dependencies=[Depends(get_current_token)])
 async def backup_post():
     logger.info("收到数据库备份请求")
     result=backup_database_post()
@@ -104,7 +104,7 @@ async def get_health_status():
     logger.info(f"系统健康检查结果：{check}")
     return check
 
-@app.get("/api/supervisord/processes",summary="获取supervisord管理的所有进程状态信息",tags=["process_status"])
+@app.get("/api/supervisord/processes",summary="获取supervisord管理的所有进程状态信息",tags=["process_status"],dependencies=[Depends(get_current_token)])
 async def list_processes():
     try:
         processes=get_processes()
@@ -112,7 +112,7 @@ async def list_processes():
     except Exception as e:
         raise HTTPException(status_code=500,detail=f"获取失败：{str(e)}")
 
-@app.get("/api/supervisord/process/{name}",summary="获取指定进程的状态",tags=["process_status"])
+@app.get("/api/supervisord/process/{name}",summary="获取指定进程的状态",tags=["process_status"],dependencies=[Depends(get_current_token)])
 async def process(name:str):
     try:
         process=get_process_name(name)
@@ -120,7 +120,7 @@ async def process(name:str):
     except Exception as e:
         raise HTTPException(status_code=500,detail=f"指定{name}进程状态获取失败：{str(e)}")
 
-@app.get("/api/supervisord/process/log/{name}",summary="获取指定进程日志",tags=["process_status"])
+@app.get("/api/supervisord/process/log/{name}",summary="获取指定进程日志",tags=["process_status"],dependencies=[Depends(get_current_token)])
 async def get_log(name:str):
     try:
         logs=get_process_log(name)
@@ -130,11 +130,11 @@ async def get_log(name:str):
 
 
 
-if __name__ == "__main__":
-
-    uvicorn.run(
-        app="main:app",
-        host='127.0.0.1',
-        port=8000,
-        reload=True
-    )
+# if __name__ == "__main__":
+#
+#     uvicorn.run(
+#         app="main:app",
+#         host='127.0.0.1',
+#         port=8000,
+#         reload=True
+#     )
