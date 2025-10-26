@@ -9,7 +9,7 @@ class Settings:
     MYSQL_PORT=os.getenv("MYSQL_PORT",3306)
     MYSQL_USER=os.getenv("MYSQL_USER",'root')
     MYSQL_PASSWORD=os.getenv("MYSQL_PASSWORD",'')
-    TOKEN_KEY=os.getenv("TOKEN_KEY",'')
+    TOKEN_KEY=os.getenv("token_key",'')
 
 
     # 备份路径
