@@ -10,5 +10,12 @@ config.env
 #忽略日志文件
 logs/
 
+# 忽略前端目录依赖
+app_monitor/.vscode/
+app_monitor/dist/
+app_monitor/node_modules/
+app_monitor/public/
+app_monitor/README.md
+
 .idea/
 __pycache__/
